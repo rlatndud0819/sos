@@ -1,139 +1,204 @@
 package main.web;
-
-import javax.servlet.http.HttpServletRequest;
-
+import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+import javax.servlet.http.*;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+import java.util.HashMap;
+import java.util.Map;
 
-/**
- * 회원 관련 요청을 처리하는 컨트롤러 클래스입니다.
- */
 @Controller
 public class memberController {
+    
+    private String user(HttpServletRequest r){
+        HttpSession s = r.getSession(false);
+        return s != null ? (String)s.getAttribute("userEmail") : null;
+    }
 
-	/*
-	 * 회원등록 화면으로 이동
-	 */
-	@RequestMapping("/memberWrite.do")
-	public String memberWrite() {
-		return "member/memberWrite";  // /WEB-INF/jsp/member/memberWrite.jsp
-	}
+    @GetMapping("/signup.do")   
+    public String signup(){return "member/signup";}
+    
+    @GetMapping("/login.do")    
+    public String login(){return "member/login";}
 
-	/*
-	 * 회원가입 화면으로 이동 (signup 버전)
-	 */
-	@RequestMapping("/signup.do")
-	public String signup() {
-		return "member/signup";  // /WEB-INF/jsp/member/signup.jsp
-	}
+    @GetMapping("/testJDBC.do")
+    @ResponseBody
+    public String testJDBC() {
+        try {
+            Class.forName("com.filemaker.jdbc.Driver");
+            java.sql.Connection conn = java.sql.DriverManager.getConnection(
+                "jdbc:filemaker://xcd006.cafe24.com:2399/KSY_MypageDB",
+                "admin", "2211"
+            );
+            conn.close();
+            return "✅ JDBC 연결 테스트 성공!";
+        } catch (ClassNotFoundException e) {
+            return "❌ 드라이버 로드 실패: " + e.getMessage();
+        } catch (java.sql.SQLException e) {
+            return "❌ DB 연결 실패: " + e.getMessage();
+        }
+    }
 
-	/**
-	 * GET 요청 처리: 회원가입 폼으로 리다이렉트합니다.
-	 * @return 리다이렉트 URL
-	 */
-	@GetMapping("/join.do")
-	public String joinForm() {
-		return "redirect:/memberWrite.do";
-	}
+    @PostMapping("/join.do")
+    public String join(MemberVO vo, Model m){
+        String email = vo.getEmail().trim().toLowerCase();
+        if(FMK_DB.existsEmail(email)){
+            m.addAttribute("dupEmailMsg","이미 등록된 이메일입니다!");
+            m.addAttribute("prefill_email",email);
+            m.addAttribute("prefill_name", vo.getName());
+            m.addAttribute("prefill_firstName", vo.getPassportFirstName());
+            m.addAttribute("prefill_lastName", vo.getPassportLastName());
+            m.addAttribute("prefill_phone", vo.getPhone());
+            m.addAttribute("prefill_birthdate", vo.getBirthdate());
+            m.addAttribute("prefill_gender", vo.getGender());
+            return "member/signup";
+        }
+        
+        boolean ok = FMK_DB.registerMember(
+                vo.getName(), vo.getPassportFirstName(), vo.getPassportLastName(),   
+                email, vo.getPhone(), vo.getBirthdate(), vo.getGender(), vo.getPassword());
+        
+        if(ok){
+            m.addAttribute("memberVo",vo);
+            return "member/success";
+        }
+        m.addAttribute("error","가입 실패"); 
+        return "member/signup";
+    }
 
-	/**
-	 * POST 요청 처리: 회원가입 폼 제출을 처리하고 회원 정보를 데이터베이스에 저장합니다.
-	 * @param request HTTP 요청 객체
-	 * @param model 모델 객체 (뷰로 데이터를 전달하기 위해 사용)
-	 * @return 성공 시 success.jsp, 실패 시 fail.jsp 뷰 이름
-	 */
-	@PostMapping("/join.do")
-	public String join(HttpServletRequest request, Model model) {
-		// 폼 데이터를 추출하여 MemberVO 객체 생성
-		String name = request.getParameter("name");
-		String passportFirstName = request.getParameter("passportFirstName");
-		String passportLastName = request.getParameter("passportLastName"); 
-		String email = request.getParameter("email");
-		String phone = request.getParameter("phone");
-		String birthdate = request.getParameter("birthdate");
-		String gender = request.getParameter("gender");
+    @PostMapping("/login.do")
+    public String doLogin(HttpServletRequest req, Model m){
+        String email = req.getParameter("email").trim().toLowerCase();
+        String pw = req.getParameter("password");
+        if(FMK_DB.authenticate(email,pw)){
+            req.getSession(true).setAttribute("userEmail",email);
+            return "redirect:/main.do";
+        }
+        m.addAttribute("loginError","로그인 실패");
+        return "member/login";
+    }
 
-		// 폼 전송 확인 디버깅
-		System.out.println("=== 폼 전송 확인 ===");
-		System.out.println("request.getParameter('passportFirstName'): [" + passportFirstName + "]");
-		System.out.println("request.getParameter('passportLastName'): [" + passportLastName + "]");
+    @GetMapping("/regular_member.do")
+    public String regularMember(HttpServletRequest r, Model m){
+        String email = user(r); 
+        if(email == null) return "redirect:/login.do";
+        m.addAttribute("memberVo", FMK_DB.getMemberByEmail(email));
+        return "member/regular_member";
+    }
 
-		// null 체크 및 빈 문자열 처리
-		if (passportFirstName == null || passportFirstName.trim().isEmpty()) {
-			passportFirstName = "";
-		}
-		if (passportLastName == null || passportLastName.trim().isEmpty()) {
-			passportLastName = "";
-		}
+    @PostMapping("/member/upgrade.do")
+    public String upgrade(@RequestParam String passportNo,
+                          @RequestParam MultipartFile passportImg,
+                          @RequestParam(required=false) MultipartFile visaImg,
+                          @RequestParam(required=false) MultipartFile feeImg,
+                          HttpServletRequest r, Model m){
+        String email = user(r); 
+        if(email == null) return "redirect:/login.do";
+        
+        boolean ok = FMK_DB.registerRegularMember(email, passportNo, passportImg, visaImg, feeImg);
+        return ok ? "redirect:/late_regular_member.do" : "redirect:/regular_member.do";
+    }
 
-		// MemberVO 객체 생성
-		MemberVO memberVo = new MemberVO(name, passportFirstName, passportLastName, email, phone, birthdate, gender);
+    @GetMapping("/late_regular_member.do")
+    public String late(HttpServletRequest r, Model m){
+        String email = user(r); 
+        if(email == null) return "redirect:/login.do";
+        m.addAttribute("memberVo", FMK_DB.getMemberByEmail(email));
+        return "member/late_regular_member";
+    }
 
-		try {
-			// 디버깅을 위해 콘솔에 출력
-			System.out.println("=== 회원가입 요청 데이터 ===");
-			System.out.println("이름: " + memberVo.getName());
-			System.out.println("영어 이름: " + memberVo.getPassportFirstName());
-			System.out.println("영어 성: " + memberVo.getPassportLastName());
-			System.out.println("이메일: " + memberVo.getEmail());
-			System.out.println("휴대폰 번호: " + memberVo.getPhone());
-			System.out.println("생년월일: " + memberVo.getBirthdate());
-			System.out.println("성별: " + memberVo.getGender());
+    @GetMapping("/success_regular_member.do")
+    public String success(HttpServletRequest r, Model m){
+        String email = user(r); 
+        if(email == null) return "redirect:/login.do";
+        m.addAttribute("memberVo", FMK_DB.getMemberByEmail(email));
+        return "member/success_regular_member";
+    }
 
-			// DB에 회원 정보 저장
-			boolean success = FMK_DB.registerMember(name, passportFirstName, passportLastName, email, phone, birthdate, gender);
+    @GetMapping("/member/checkStatus.do")
+    @ResponseBody
+    public Map<String, Object> checkStatus(HttpServletRequest r) {
+        String email = user(r);
+        Map<String, Object> result = new HashMap<>();
+        
+        if (email != null) {
+            FMK_DB.MemberProfile profile = FMK_DB.getMemberByEmail(email);
+            if (profile != null) {
+                String grade = profile.getGrade();
+                boolean isRegular = "정회원".equals(grade);
+                result.put("isRegularMember", isRegular);
+                result.put("currentGrade", grade);
+            } else {
+                result.put("isRegularMember", false);
+                result.put("currentGrade", "조회 실패");
+            }
+        } else {
+            result.put("isRegularMember", false);
+            result.put("currentGrade", "로그인 필요");
+        }
+        return result;
+    }
+    
+    @GetMapping("/main.do")
+    public String main(HttpServletRequest r, Model m){
+        String email = user(r); 
+        if(email == null) return "redirect:/login.do";
+        m.addAttribute("memberVo", FMK_DB.getMemberByEmail(email));
+        return "member/main";
+    }
 
-			if (success) {
-				// 회원가입 성공 시, memberVo 객체를 Model에 추가하여 JSP로 전달
-				System.out.println("회원가입 성공!");
-				model.addAttribute("memberVo", memberVo);
-				// 표준 Spring MVC 방식으로 뷰 리턴
-				return "member/success";  // /WEB-INF/jsp/member/success.jsp
-			} else {
-				// 회원가입 실패 시
-				System.out.println("회원가입 실패!");
-				return "member/fail"; // 실패 페이지로 이동
-			}
+    @GetMapping(value="/api/email-exists.do", produces="text/plain;charset=UTF-8")
+    @ResponseBody
+    public String emailExists(@RequestParam String email){
+        return FMK_DB.existsEmail(email.trim().toLowerCase()) ? "true" : "false";
+    }
 
-		} catch (Exception e) {
-			System.err.println("회원가입 처리 중 오류 발생: " + e.getMessage());
-			e.printStackTrace();
-			return "member/fail"; // 예외 발생 시 실패 페이지로 이동
-		}
-	}
+    @GetMapping("/logout.do")
+    public String logout(HttpServletRequest r){
+        HttpSession s = r.getSession(false); 
+        if(s != null) s.invalidate();
+        return "redirect:/login.do";
+    }
 
-	/**
-	 * 회원 정보를 담는 VO(Value Object) 클래스
-	 */
-	public class MemberVO {
-		private String name;
-		private String passportFirstName;
-		private String passportLastName;
-		private String email;
-		private String phone;
-		private String birthdate;
-		private String gender;
+    @PostMapping("/admin/approveMember.do")
+    public String approveMember(@RequestParam String email) {
+        boolean isRegularMember = FMK_DB.approveMember(email);
+        return isRegularMember ? "redirect:/success_regular_member.do" : "redirect:/admin/memberList.do";
+    }
 
-		public MemberVO(String name, String passportFirstName, String passportLastName, String email, String phone, String birthdate, String gender) {
-			this.name = name;
-			this.passportFirstName = passportFirstName;
-			this.passportLastName = passportLastName;
-			this.email = email;
-			this.phone = phone;
-			this.birthdate = birthdate;
-			this.gender = gender;
-		}
-
-		// Getters
-		public String getName() { return name; }
-		public String getPassportFirstName() { return passportFirstName; }
-		public String getPassportLastName() { return passportLastName; }
-		public String getEmail() { return email; }
-		public String getPhone() { return phone; }
-		public String getBirthdate() { return birthdate; }
-		public String getGender() { return gender; }
-	}
+    @PostMapping("/checkApprovalStatus.do")
+    public String checkApprovalStatus(HttpServletRequest r, RedirectAttributes redirectAttributes) {
+        String email = user(r);
+        if(email == null) {
+            redirectAttributes.addFlashAttribute("errorMessage", "로그인이 필요합니다.");
+            return "redirect:/login.do";
+        }
+        
+        try {
+            FMK_DB.MemberProfile profile = FMK_DB.getMemberByEmail(email);
+            
+            if (profile != null) {
+                String currentGrade = profile.getGrade();
+                
+                if ("정회원".equals(currentGrade)) {
+                    redirectAttributes.addFlashAttribute("successMessage", 
+                        "🎉 축하합니다! 정회원 승인이 완료되었습니다.");
+                    return "redirect:/success_regular_member.do";
+                } else {
+                    redirectAttributes.addFlashAttribute("statusMessage", 
+                        "현재 상태: " + currentGrade + " - 승인 검토 중입니다. 잠시만 더 기다려주세요.");
+                    return "redirect:/late_regular_member.do";
+                }
+            } else {
+                redirectAttributes.addFlashAttribute("errorMessage", 
+                    "회원 정보를 조회할 수 없습니다. 다시 시도해주세요.");
+                return "redirect:/late_regular_member.do";
+            }
+        } catch (Exception e) {
+            redirectAttributes.addFlashAttribute("errorMessage", 
+                "상태 확인 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.");
+            return "redirect:/late_regular_member.do";
+        }
+    }
 }

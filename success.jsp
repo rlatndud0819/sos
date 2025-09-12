@@ -7,106 +7,108 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>회원가입 성공</title>
     <style>
-        body {
-            font-family: '맑은 고딕', 'Malgun Gothic', sans-serif;
-            background-color: #f0f2f5;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            margin: 0;
-            color: #333;
-        }
+        * { margin:0; padding:0; list-style:none; text-decoration:none; font-family:'Malgun Gothic','맑은 고딕',sans-serif; box-sizing:border-box; }
+
+        /* 페이지 레이아웃: sticky footer + 중앙 정렬 */
+        .page-container { min-height:100vh; display:flex; flex-direction:column; } /* 세로 플렉스 컨테이너 */
+        .main-content   { flex:1; display:flex; justify-content:center; align-items:flex-start; padding:24px 16px; } /* 가로 중앙 */
+        .main-inner     { width:100%; max-width:1080px; display:flex; justify-content:center; } /* 중앙 래퍼 */
+
+        /* 카드 컨테이너 */
         .container {
-            background-color: #fff;
-            padding: 40px;
-            border-radius: 12px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-            text-align: center;
-            animation: fadeIn 0.8s ease-in-out;
-            max-width: 600px;
+            width:100%; max-width:380px; background:#fff; border:1px solid #e0e0e0;
+            box-shadow:0 2px 8px rgba(0,0,0,.1); border-radius:12px; overflow:hidden;
+            animation:fadeIn .8s ease-in-out;
         }
-        h1 {
-            color: #4CAF50;
-            font-size: 2.5em;
-            margin-bottom: 20px;
+        .header { background:#fff; padding:18px; text-align:center; }
+        h1 { color:#333; font-size:1.4em; font-weight:bold; margin-bottom:0; }
+
+        .tab-menu { display:flex; justify-content:space-around; border-bottom:2px solid #e9ecef; background:#fff; }
+        .tab-menu a { color:#6c757d; padding:12px 0; flex-grow:1; text-align:center; font-weight:bold; transition:all .3s ease; }
+        .tab-menu a.active { color:rgb(250,0,0); border-bottom:2px solid rgb(250,0,0); }
+
+        .content { padding:25px 20px; background:#fff; }
+        .member-info { margin-bottom:20px; padding:20px; border-radius:8px; background:#fff; }
+        .member-name { font-size:1.3em; font-weight:bold; color:#333; margin-bottom:8px; }
+        .birthdate { font-size:.7em; color:#666; font-weight:normal; }
+        .member-code { color:#666; font-size:.9em; margin-bottom:15px; font-weight:500; }
+        .member-details { line-height:1.6; color:#555; margin-bottom:15px; font-size:.9em; }
+        .member-details div { margin-bottom:3px; }
+        .member-type { color:#333; font-weight:bold; margin-top:15px; font-size:1em; }
+        .success-message { color:#000; padding:15px; text-align:center; font-size:1em; font-weight:bold; margin-bottom:12px; }
+        .info-text { text-align:center; color:#000; font-size:.8em; line-height:1.4; }
+
+        .submit-button {
+            width:100%; max-width:380px; padding:15px; background:rgb(250,0,0); color:#fff;
+            font-size:1.1em; font-weight:bold; border:none; border-radius:8px; cursor:pointer; transition:background-color .3s ease; margin-top:10px;
         }
-        p {
-            font-size: 1.2em;
-            line-height: 1.6;
+        .submit-button:hover { background:#1976D2; }
+
+        @media (max-width:480px){
+            .container { margin:10px; border-radius:8px; max-width:350px; }
+            .content { padding:20px 15px; }
+            .member-info { padding:15px; }
+            .submit-button { max-width:350px; }
         }
-        .info-box {
-            background-color: #e8f5e9;
-            border-left: 5px solid #4CAF50;
-            margin: 25px 0;
-            padding: 15px;
-            border-radius: 8px;
-            text-align: left;
-        }
-        .info-box h3 {
-            margin-top: 0;
-            color: #2e7d32;
-        }
-        .info-box p {
-            margin: 8px 0;
-        }
-        .btn-home {
-            display: inline-block;
-            margin-top: 30px;
-            padding: 12px 25px;
-            background-color: #4CAF50;
-            color: #fff;
-            text-decoration: none;
-            border-radius: 8px;
-            transition: background-color 0.3s ease;
-            font-weight: bold;
-            margin-right: 10px;
-        }
-        .btn-home:hover {
-            background-color: #45a049;
-        }
-        .btn-secondary {
-            background-color: #2196F3;
-        }
-        .btn-secondary:hover {
-            background-color: #1976D2;
-        }
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(-20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
+        @keyframes fadeIn { from { opacity:0; transform:translateY(-20px);} to { opacity:1; transform:translateY(0);} }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>🎉 회원가입을 축하드립니다!</h1>
-        <p>
-            회원님의 정보가 성공적으로 등록되었습니다.<br>
-            서비스 이용을 위해 로그인 페이지로 이동해주세요.
-        </p>
+<div class="page-container">
+    <%@ include file="../layout/header.jsp" %>
 
-        <div class="info-box">
-            <h3>📋 회원가입 정보 확인</h3>
-            <p><strong>이름:</strong> <c:out value="${memberVo.name}" /></p>
-            <c:if test="${not empty memberVo.passportFirstName || not empty memberVo.passportLastName}">
-                <p><strong>영문 이름:</strong> 
-                   <c:out value="${memberVo.passportFirstName}" /> <c:out value="${memberVo.passportLastName}" />
-                </p>
-            </c:if>
-            <p><strong>이메일:</strong> <c:out value="${memberVo.email}" /></p>
-            <p><strong>전화번호:</strong> <c:out value="${memberVo.phone}" /></p>
-            <c:if test="${not empty memberVo.birthdate}">
-                <p><strong>생년월일:</strong> <c:out value="${memberVo.birthdate}" /></p>
-            </c:if>
-            <c:if test="${not empty memberVo.gender}">
-                <p><strong>성별:</strong> <c:out value="${memberVo.gender}" /></p>
-            </c:if>
+    <main class="main-content">
+        <div class="main-inner">
+            <div class="container">
+                <div class="header">
+                    <h1>회원가입</h1>
+                </div>
+
+                <!-- .do 매핑 사용 -->
+                <div class="tab-menu">
+                    <a href="${pageContext.request.contextPath}/signup.do" class="active">일반회원</a>
+                    <a href="${pageContext.request.contextPath}/regular_member.do">정회원</a>
+                    <a href="${pageContext.request.contextPath}/corporate.do">법인회원</a>
+                </div>
+
+                <div class="content">
+                    <div class="member-info">
+                        <div class="member-name">
+                            <c:out value="${memberVo.name}"/>님
+                            <span class="birthdate"><c:out value="${memberVo.birthdate}"/></span>
+                        </div>
+
+                        <div class="member-code"></div>
+
+                        <div class="member-details">
+                            <div>
+                                <c:out value="${memberVo.passportFirstName}"/>
+                                <c:out value="${memberVo.passportLastName}"/>
+                                <span class="gender"><c:out value="${memberVo.gender}"/></span>
+                            </div>
+                            <div><c:out value="${memberVo.email}"/></div>
+                            <div><c:out value="${memberVo.phone}"/></div>
+                        </div>
+
+                        <div class="member-type">일반회원</div>
+                    </div>
+
+                    <div class="success-message">회원가입이 완료 되었습니다.</div>
+                    <div class="info-text">정회원이 되시면 더 많은 혜택을 받으실 수 있습니다.</div>
+
+                    <button type="button" class="submit-button" onclick="goLogin()">로그인</button>
+                </div>
+            </div>
         </div>
+    </main>
 
-        <a href="${pageContext.request.contextPath}/" class="btn-home">🏠 메인 페이지로 돌아가기</a>
-        <a href="${pageContext.request.contextPath}/memberWrite.do" class="btn-home btn-secondary">
-            👥 추가 회원가입
-        </a>
-    </div>
+    <%@ include file="../layout/footer.jsp" %>
+</div>
+
+<script>
+  function goLogin(){
+    window.location.href='${pageContext.request.contextPath}/login.do';
+  }
+</script>
 </body>
 </html>
